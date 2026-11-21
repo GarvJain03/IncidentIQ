@@ -50,3 +50,20 @@ def mark_read(
     db.commit()
     db.refresh(notification)
     return {"id": notification.id, "is_read": notification.is_read}
+
+
+@router.patch("/read-all")
+def mark_all_read(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    updated = (
+        db.query(Notification)
+        .filter(
+            Notification.user_id == current_user.id,
+            Notification.is_read.is_(False),
+        )
+        .update({"is_read": True}, synchronize_session=False)
+    )
+    db.commit()
+    return {"updated": updated}
