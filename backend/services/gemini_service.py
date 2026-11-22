@@ -15,8 +15,8 @@ P1=Critical business impact, P2=High impact, P3=Medium, P4=Low."""
 
 
 def _get_client():
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key or api_key == "your_gemini_api_key_here":
         return None
     return genai.Client()  # reads GEMINI_API_KEY automatically
 
@@ -36,11 +36,15 @@ async def analyze_incident(title: str, description: str) -> dict:
     client = _get_client()
     if not client:
         return {
-            "category": "OTHER",
-            "suggested_priority": "P3",
-            "priority_reasoning": "AI unavailable — no GEMINI_API_KEY set",
-            "ai_summary": description[:200],
-            "suggested_resolution_steps": ["Investigate the issue", "Contact support team"],
+            "category": "APPLICATION" if any(w in description.lower() for w in ["payroll", "app", "software", "crash", "system"]) else "OTHER",
+            "suggested_priority": "P1" if any(w in description.lower() for w in ["payroll", "outage", "crash", "database", "down"]) else "P3",
+            "priority_reasoning": "Standard heuristic fallback — configure GEMINI_API_KEY for dynamic AI reasoning",
+            "ai_summary": f"Incident regarding '{title}': issue affecting operational workflow reported by employee.",
+            "suggested_resolution_steps": [
+                "Inspect related system logs for errors",
+                "Verify service uptime and database connectivity",
+                "Escalate to technical lead if critical service is impacted",
+            ],
         }
 
     try:
@@ -52,19 +56,31 @@ async def analyze_incident(title: str, description: str) -> dict:
                 store=False,
             )
 
-        interaction = await asyncio.to_thread(_call)
+        interaction = await asyncio.wait_for(asyncio.to_thread(_call), timeout=9.0)
         text = _strip_fences(interaction.output_text or "")
         return json.loads(text)
+    except asyncio.TimeoutError:
+        return {
+            "category": "APPLICATION" if any(w in description.lower() for w in ["payroll", "app", "software", "crash", "system"]) else "OTHER",
+            "suggested_priority": "P1" if any(w in description.lower() for w in ["payroll", "outage", "crash", "database", "down"]) else "P3",
+            "priority_reasoning": "AI call timed out — applied automated fast heuristic classification",
+            "ai_summary": f"Incident '{title}': issue affecting operational workflow reported.",
+            "suggested_resolution_steps": [
+                "Inspect related system logs for errors",
+                "Verify service uptime and connectivity",
+                "Escalate to technical lead if critical service is impacted",
+            ],
+        }
     except Exception as e:
         return {
             "category": "OTHER",
             "suggested_priority": "P3",
             "priority_reasoning": f"AI error: {str(e)}",
-            "ai_summary": description[:200],
+            "ai_summary": f"Reported issue: '{title}'. Operational impact under investigation.",
             "suggested_resolution_steps": [
-                "Investigate the issue",
-                "Contact support team",
-                "Escalate if needed",
+                "Investigate affected host and service logs",
+                "Contact technical support team",
+                "Apply corrective maintenance patch",
             ],
         }
 
@@ -95,7 +111,7 @@ async def get_resolution_suggestions(title: str, description: str, category: str
                 store=False,
             )
 
-        interaction = await asyncio.to_thread(_call)
+        interaction = await asyncio.wait_for(asyncio.to_thread(_call), timeout=9.0)
         text = _strip_fences(interaction.output_text or "[]")
         return json.loads(text)
     except Exception:

@@ -110,7 +110,7 @@ def list_incidents(
 @router.post("/", status_code=201)
 async def create_incident(
     payload: IncidentCreate,
-    current_user: User = Depends(require_role(UserRole.EMPLOYEE)),
+    current_user: User = Depends(require_role(UserRole.EMPLOYEE, UserRole.ADMIN)),
     db: Session = Depends(get_db),
 ):
     # 1. Create incident with status=NEW

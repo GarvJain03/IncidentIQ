@@ -8,7 +8,7 @@ router = APIRouter(prefix="/api/ai", tags=["AI"])
 
 
 class AnalyzeRequest(BaseModel):
-    title: str
+    title: str = ""
     description: str
 
 
